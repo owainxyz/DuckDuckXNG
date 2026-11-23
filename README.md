@@ -18,7 +18,7 @@
 
 ## Features
 
-| | |
+| Feature | What you get |
 |---|---|
 | **DuckDuckGo-style layout** | results with site names, filter menus, image grid, videos carousel, related searches, settings page |
 | **Search Assist** | a 2-sentence answer above the results, streamed from a local model, with Explore More follow-up questions |
