@@ -1,0 +1,105 @@
+use_default_settings: true
+general:
+  instance_name: "DuckDuckXNG"
+  enable_metrics: false
+  contact_url: "https://github.com/searxng/searxng"
+server:
+  secret_key: "change-me"  # or set SEARXNG_SECRET
+  bind_address: "127.0.0.1"
+  port: 7500
+  base_url: "http://127.0.0.1:8888/"
+  limiter: false
+  image_proxy: true
+  method: "GET"
+search:
+  safe_search: 0
+  autocomplete: "brave"
+  default_lang: "en-GB"
+  formats: [html, json]
+  favicon_resolver: "duckduckgo"
+  suspended_times:
+    SearxEngineAccessDenied: 300
+    SearxEngineCaptcha: 300
+    SearxEngineTooManyRequests: 300
+    cf_SearxEngineCaptcha: 600
+    cf_SearxEngineAccessDenied: 300
+    recaptcha_SearxEngineCaptcha: 600
+ui:
+  static_use_hash: true
+  default_theme: simple
+  theme_args:
+    simple_style: dark
+  infinite_scroll: true
+  query_in_title: true
+outgoing:
+  request_timeout: 1.5
+  max_request_timeout: 2.5
+  enable_http2: true
+  pool_connections: 100
+  pool_maxsize: 20
+engines:
+  - name: bing
+    disabled: true
+  - name: google
+    disabled: false
+    weight: 1.5
+  - name: google cse
+    disabled: true
+  - name: yahoo
+    disabled: false
+  - name: brave
+    weight: 1.2
+  - name: wikidata
+    disabled: true
+  - name: startpage
+    disabled: true
+  - name: qwant
+    disabled: true
+  - name: mojeek
+    disabled: true
+  - name: ahmia
+    disabled: true
+  - name: torch
+    disabled: true
+  - name: brave.images
+    disabled: true
+  - name: wikicommons.images
+    disabled: true
+  - name: pinterest
+    disabled: true
+  - name: google cse images
+    disabled: true
+  - name: duckduckgo images
+    disabled: false
+
+plugins:
+  searx.plugins.infinite_scroll.SXNGPlugin:
+    active: true
+  searx.plugins.oa_doi_rewrite.SXNGPlugin:
+    active: true
+  ddgfix.SXNGPlugin:
+    active: true
+hostnames:
+  remove:
+    - '^$'
+    - '(.*\.)?pinterest\.[a-z.]+$'
+    - '(.*\.)?quora\.com$'
+    - '(.*\.)?answers\.microsoft\.com$'
+  low_priority:
+    - '(.*\.)?geeksforgeeks\.org$'
+    - '(.*\.)?w3schools\.com$'
+    - '(.*\.)?tutorialspoint\.com$'
+    - '(.*\.)?medium\.com$'
+    - '(.*\.)?javatpoint\.com$'
+  high_priority:
+    - '(.*\.)?wikipedia\.org$'
+    - '^wiki\.archlinux\.org$'
+    - '^wiki\.nixos\.org$'
+    - '^search\.nixos\.org$'
+    - '^github\.com$'
+    - '^docs\.rs$'
+    - '^doc\.rust-lang\.org$'
+    - '^stackoverflow\.com$'
+    - '(.*\.)?stackexchange\.com$'
+    - '^developer\.mozilla\.org$'
+    - '^wiki\.gentoo\.org$'

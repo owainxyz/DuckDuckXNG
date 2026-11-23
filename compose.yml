@@ -1,0 +1,66 @@
+# DuckDuckXNG: SearXNG with a DuckDuckGo-style theme and an Ollama-powered Search Assist.
+# Open http://127.0.0.1:8888 (proxy.py puts SearXNG and /assist on one origin).
+# Everything uses host networking and binds to 127.0.0.1; put your own reverse proxy in front to expose it.
+services:
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: duckduckxng-searxng
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      SEARXNG_BASE_URL: ${BASE_URL:-http://127.0.0.1:8888/}
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?set SEARXNG_SECRET in .env (openssl rand -hex 32)}
+      SEARXNG_BIND_ADDRESS: 127.0.0.1
+      SEARXNG_PORT: "7500"
+      GRANIAN_HOST: 127.0.0.1
+      GRANIAN_PORT: "7500"
+      PYTHONPATH: /etc/searxng/py
+    volumes: ["./searxng:/etc/searxng"]
+    # appends the theme to SearXNG's bundled css/js on every start, so image updates keep working
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        d=/usr/local/searxng/searx/static/themes/simple
+        [ -f $$d/sxng-ltr.min.css.orig ] || cp $$d/sxng-ltr.min.css $$d/sxng-ltr.min.css.orig
+        [ -f $$d/sxng-core.min.js.orig ] || cp $$d/sxng-core.min.js $$d/sxng-core.min.js.orig
+        cat $$d/sxng-ltr.min.css.orig /etc/searxng/theme/ddg.css > $$d/sxng-ltr.min.css
+        cat $$d/sxng-core.min.js.orig /etc/searxng/theme/assist.js > $$d/sxng-core.min.js
+        rm -f $$d/sxng-ltr.min.css.br $$d/sxng-ltr.min.css.gz $$d/sxng-core.min.js.br $$d/sxng-core.min.js.gz
+        rm -rf $$d/ddg
+        cp -r /etc/searxng/theme/ddg $$d/ddg
+        cp /etc/searxng/theme/ddg/logo.svg $$d/img/favicon.svg; rm -f $$d/img/favicon.svg.br $$d/img/favicon.svg.gz
+        t=/usr/local/searxng/searx/templates/simple
+        sed -i -e 's#<LongName>.*</LongName>#<LongName>DuckDuckXNG</LongName>#' -e 's#<Description>.*</Description>#<Description>Search DuckDuckXNG</Description>#' $$t/opensearch.xml
+        sed -i 's#{{- q|e }} - {% endif %}#{{- q|e }} at {% endif %}#' $$t/results.html
+        sed -i -E "s#(min\.(css|js)'\) \}\})(\?v=[0-9]+)?#\1?v=$$(date +%s)#g" $$t/base.html
+        exec /usr/local/searxng/entrypoint.sh
+
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    container_name: duckduckxng-ollama
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      OLLAMA_HOST: 127.0.0.1:11434
+      OLLAMA_KEEP_ALIVE: "-1"        # never unload: reloading mid-search stalls the machine
+      OLLAMA_CONTEXT_LENGTH: "8192"  # same size assist.py asks for, so the model never reloads
+      OLLAMA_FLASH_ATTENTION: "1"
+    volumes: ["./ollama:/root/.ollama"]
+    # NVIDIA GPU: uncomment (needs nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+
+  assist:
+    image: docker.io/library/python:3.13-alpine
+    container_name: duckduckxng-assist
+    restart: unless-stopped
+    network_mode: host
+    depends_on: [searxng, ollama]
+    environment:
+      BACKENDS: ${BACKENDS:-http://127.0.0.1:11434=qwen2.5:7b}
+      PROXY_PORT: ${PORT:-8888}
+    volumes: ["./assist:/app:ro"]
+    command: ["sh", "-c", "(python -u /app/proxy.py &) ; exec python -u /app/assist.py"]
