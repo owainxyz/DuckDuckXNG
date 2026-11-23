@@ -1,3 +1,5 @@
+<p align="center"><img src="https://duckduckgo.com/assets/logo_header.v109.svg" alt="DuckDuckGo logo" width="120"></p>
+
 # DuckDuckXNG
 
 [SearXNG](https://github.com/searxng/searxng) with a DuckDuckGo-style look and a local AI Search Assist.
