@@ -1,57 +1,108 @@
 <p align="center"><img src="https://duckduckgo.com/assets/logo_header.v109.svg" alt="DuckDuckGo logo" width="120"></p>
 
-# DuckDuckXNG
+<h1 align="center">DuckDuckXNG</h1>
 
-[SearXNG](https://github.com/searxng/searxng) with a DuckDuckGo-style look and a local AI Search Assist.
+<p align="center">
+  <a href="https://github.com/searxng/searxng">SearXNG</a> with a DuckDuckGo-style look and a local AI Search Assist.<br>
+  No tracking, no API keys, no cloud AI: answers come from an <a href="https://ollama.com">Ollama</a> model on your own machine.
+</p>
 
-- results layout, filter menus, image grid, videos carousel and settings page in the DuckDuckGo style
-- Search Assist: a 2-sentence answer above the results, written by a local [Ollama](https://ollama.com) model from the top results, with Explore More follow-ups
-- AI Chat with saved chats
-- instant answers in the browser: calculator, unit converter, timer, stopwatch, password, random number, colour picker, time; dictionary and weather through `assist.py`
-- `!bangs` work like DuckDuckGo's
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/configuration.md">Configuration</a> ·
+  <a href="docs/search-assist.md">Search Assist</a> ·
+  <a href="docs/troubleshooting.md">Troubleshooting</a>
+</p>
 
-Not affiliated with DuckDuckGo. Their logo and fonts aren't included; the theme falls back to system fonts.
+---
 
-## Run
+## Features
+
+| | |
+|---|---|
+| **DuckDuckGo-style layout** | results with site names, filter menus, image grid, videos carousel, related searches, settings page |
+| **Search Assist** | a 2-sentence answer above the results, streamed from a local model, with Explore More follow-up questions |
+| **AI Chat** | full-page chat with the same model; chats are saved in your browser |
+| **Instant answers** | calculator, unit and currency converter, weather, dictionary, timer, stopwatch, time, colour picker, password and random number |
+| **Bangs** | `!w rambutan`, `!gh searxng` and the rest, the same as DuckDuckGo |
+
+## Quick start
+
+You need Docker with Compose, about 6 GB of disk space, and ideally a GPU with 8 GB of VRAM. CPU-only works too: see [models](docs/configuration.md#models).
 
 ```sh
+git clone https://github.com/owainxyz/DuckDuckXNG
+cd DuckDuckXNG
 cp .env.example .env
 sed -i "s/^SEARXNG_SECRET=.*/SEARXNG_SECRET=$(openssl rand -hex 32)/" .env
 docker compose up -d
 docker exec duckduckxng-ollama ollama pull qwen2.5:7b
 ```
 
-Open http://127.0.0.1:8888.
+Open **http://127.0.0.1:8888**.
 
-Everything binds to 127.0.0.1 on the host network. To reach it from elsewhere, put a reverse proxy (Caddy, nginx, `tailscale serve`) in front of port 8888 and set `BASE_URL`.
+> [!NOTE]
+> Everything binds to `127.0.0.1`. To use it from other devices, see [exposing it](docs/configuration.md#exposing-it).
 
-## Models
+## Using a GPU
 
-`BACKENDS` in `.env` is a comma-separated list of `url=model`, tried in order. A backend that can't be reached is skipped for 30 s.
+With an NVIDIA card and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed, uncomment the `deploy` block under `ollama` in `compose.yml`, then:
 
-| hardware | model | answer time |
-|---|---|---|
-| 8 GB GPU | `qwen2.5:7b` | ~1.5 s |
-| 4 GB GPU | `qwen2.5:3b` | ~1 s, sloppier |
-| CPU only | `qwen2.5:0.5b-instruct-q4_0=small` | 10-15 s |
+```sh
+docker compose up -d
+```
 
-Add `=small` to a CPU-only backend: it gets short prompts and 2 threads. For a GPU, uncomment the `deploy` block under `ollama` in `compose.yml`, or point `BACKENDS` at an Ollama running somewhere else.
+If Ollama is already running on another machine, skip the `ollama` container and point `BACKENDS` at it. See [backends](docs/configuration.md#backends).
 
-The model is kept loaded (`OLLAMA_KEEP_ALIVE=-1`) and every request uses the same context size. Unloading, or switching context size, makes Ollama reload the model in the middle of a search, which can freeze a desktop for 10-20 s.
+## How it works
+
+```mermaid
+flowchart LR
+    B[Browser] -->|:8888| P[proxy.py]
+    P -->|/assist| A[assist.py]
+    P -->|everything else| S[SearXNG]
+    A -->|/api/chat| O[Ollama]
+    A -.->|weather, dictionary| W[Open-Meteo, Wiktionary]
+    S --> E[Google, Brave, Yahoo, ...]
+```
+
+- **SearXNG** is the stock image. On every start its entrypoint appends `ddg.css` and `assist.js` to SearXNG's own bundles, so image updates keep working.
+- **assist.py** builds the Search Assist prompt from the top 4 results and streams the model's answer back. It caches answers for 24 hours and cancels an answer when you search again.
+- **proxy.py** serves both on one port, so the page can call `/assist` without CORS.
+
+## Updating
+
+```sh
+git pull
+docker compose pull
+docker compose up -d
+```
 
 ## Files
 
-| path | what |
-|---|---|
-| `compose.yml` | SearXNG, Ollama and the assist container |
-| `searxng/settings.yml` | engines, timeouts, hostname priorities |
-| `searxng/theme/ddg.css`, `assist.js` | the theme, appended to SearXNG's own css/js on every start |
-| `searxng/py/ddgfix.py` | SearXNG plugin: DuckDuckGo-style bangs, drops broken links |
-| `assist/assist.py` | Search Assist, chat, dictionary and weather API on 127.0.0.1:7501 |
-| `assist/proxy.py` | serves SearXNG and `/assist` on one port |
+```
+compose.yml               SearXNG, Ollama, assist
+.env.example              copy to .env
+assist/
+  assist.py               Search Assist, chat, weather and dictionary API (127.0.0.1:7501)
+  proxy.py                one port for SearXNG and /assist
+searxng/
+  settings.yml            engines, timeouts, hostname priorities
+  py/ddgfix.py            SearXNG plugin: DuckDuckGo-style bangs, drops broken links
+  theme/ddg.css           the look
+  theme/assist.js         Search Assist, chat, instant answers, layout
+  theme/ddg/              logo and font
+```
 
-Search Assist's style comes from the prompt and worked examples at the top of `assist.py` (`big["answer"]` and `SHOTS`).
+## Privacy
+
+- Searches go through SearXNG, so engines see your server, not you.
+- Search Assist and chat run on your own Ollama, and nothing is sent to an AI service.
+- Weather lookups go to [Open-Meteo](https://open-meteo.com) and definitions to [Wiktionary](https://en.wiktionary.org), from your server.
+- Chats, theme and settings are stored in your browser's `localStorage`.
 
 ## License
 
-AGPL-3.0, like SearXNG. Figtree is under the SIL Open Font License (`searxng/theme/ddg/Figtree-OFL.txt`).
+[AGPL-3.0](LICENSE), like SearXNG. Figtree is under the SIL Open Font License ([`Figtree-OFL.txt`](searxng/theme/ddg/Figtree-OFL.txt)).
+
+DuckDuckXNG is not affiliated with or endorsed by DuckDuckGo. DuckDuckGo's own logo and fonts are not included in this repository.
